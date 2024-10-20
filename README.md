@@ -7,11 +7,15 @@ Implementation of the correlation algorithm in our [snail radar paper](https://a
 ## Entrypoint functions
 
 estimateRotAndTdByPose2.m: given two pose files.
+
 estimateRotAndTdByPoseAndVel.m: given a pose file and a velocity file.
+
 estimateRotAndTdByPose.m: given an imu file and a pose file.
+
 estimateRotAndTd.m: given two imu files.
 
 ## Function list
+```
 .
 ├── alignVector3Sequences.m
 ├── associate2.m % faster associate
@@ -33,4 +37,5 @@ estimateRotAndTd.m: given two imu files.
 ├── removeRepetitiveEntriesAndReorder.m
 ├── tests
 └── writeRotAndTd.m
+```
 
