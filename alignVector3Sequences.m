@@ -116,19 +116,6 @@ trainDataMagMean = mean(trainDataMag);
 trainDataMag = trainDataMag - trainDataMagMean;
 trainDataSliceNoBias = [trainDataSliceNoBias, trainDataMag];
 
-if tsmoothwinsize > 1
-for i=2:size(trainDataSliceNoBias, 2)
-    smoothTrain = smoothdata(trainDataSliceNoBias(:, i), 'gaussian', tsmoothwinsize);
-    trainDataSliceNoBias(:, i) = smoothTrain;
-end
-end
-if qsmoothwinsize > 1
-for i=2:size(queryDataSliceNoBias, 2)
-    smoothQuery = smoothdata(queryDataSliceNoBias(:, i), 'gaussian', qsmoothwinsize);
-    queryDataSliceNoBias(:, i) = smoothQuery; 
-end
-end
-
 queryDeltat = trainDataSliceNoBias(1, 1) - queryDataSliceNoBias(1, 1);
 
 query_sample_times = queryDataSliceNoBias(1, 1):time_step:queryDataSliceNoBias(end, 1);
@@ -140,9 +127,22 @@ figure;
 for jack =2:size(queryDataSliceNoBias, 2)
     v3query = cubicfit(queryDataSliceNoBias(:, 1)', queryDataSliceNoBias(:, jack)', query_sample_times);
     [v3train, ~, ~]=cubicfit(trainDataSliceNoBias(:, 1)', trainDataSliceNoBias(:, jack)', sample_times);
+    if tsmoothwinsize > 1
+        v3train = smoothdata(v3train, 'gaussian', tsmoothwinsize);
+    end
+    if qsmoothwinsize > 1
+        v3query = smoothdata(v3query, 'gaussian', qsmoothwinsize);
+    end
+
     [number_delay, maxcorr, lags, xc] = estimateDelayOfSensorReading(v3query, v3train, ceil(queryDeltat + maxLagSecs / time_step));
     lags = lags * time_step;
-    delay(jack-1) = - number_delay*time_step + queryDeltat + (qsmoothwinsize - tsmoothwinsize) * time_step / 2;
+    % We used to add the smooth delay correction term (qsmoothwinsize -
+    % tsmoothwinsize) * time_step / 2. Later, with
+    % test_align_vector3_sequences, we found that gaussian smoothing does
+    % not introduce signal delay, so this correction term is removed.
+    % Ultimately, the exact correction will depend on the smoothing method,
+    % please verify the correction with test_align_vector3_sequences.m.
+    delay(jack-1) = - number_delay*time_step + queryDeltat;
     fprintf('Query data clock delays by %.6f sec to train data clock on %s\n', delay(jack-1), columnLabels{jack});
     subplot(datadims,1,jack-1);
     plot(lags, xc); hold on;
