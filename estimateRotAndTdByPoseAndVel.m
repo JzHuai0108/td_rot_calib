@@ -38,7 +38,7 @@ fprintf('Aligning %s and %s\n', posefile, velfile);
 fprintf('local vel data original time + %.9f sec = local vel time in pose sensor clock.\n', time_offset);
 vels(:, 1) = vels(:, 1) + time_offset;
 
-[p_R_v, matchesEM, stdeps]= estimateRelativeRotationRobust(vels_p, vels, 2:4, 0.01/5);
+[p_R_v, bias, matchesEM, stdeps]= estimateRelativeRotationRobust(vels_p, vels, 2:4, 0.01/5);
 if ~isempty(p_R_v)
     disp('Estimated p_R_v from matched local velocity: may be unreliable in degenerate motion.');
     fprintf('p_R_v:\n')
@@ -46,5 +46,6 @@ if ~isempty(p_R_v)
         p_R_v(1, 1), p_R_v(1, 2), p_R_v(1, 3), ...
         p_R_v(2, 1), p_R_v(2, 2), p_R_v(2, 3), ...
         p_R_v(3, 1), p_R_v(3, 2), p_R_v(3, 3));
+    fprintf('bias: %.6f %.6f %.6f\n', bias);
 end
 end

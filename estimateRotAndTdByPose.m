@@ -53,7 +53,7 @@ fprintf('Aligning %s and %s\n', posefile, imufile);
 fprintf('pose data original time + %.9f sec = pose data time in IMU clock.\n', time_offset);
 omega_p(:, 1) = omega_p(:, 1) + time_offset;
 
-[i_R_p, matchesEM]= estimateRelativeRotation(omega_i, omega_p, 2:4);
+[i_R_p, bias, matchesEM]= estimateRelativeRotationRobust(omega_i, omega_p, 2:4);
 disp('Estimated i_R_p by angular rate: may be unreliable in degenerate motion.');
 if ~isempty(i_R_p)
     fprintf('i_R_p:\n')
@@ -61,5 +61,6 @@ if ~isempty(i_R_p)
         i_R_p(1, 1), i_R_p(1, 2), i_R_p(1, 3), ...
         i_R_p(2, 1), i_R_p(2, 2), i_R_p(2, 3), ...
         i_R_p(3, 1), i_R_p(3, 2), i_R_p(3, 3));
+    fprintf('bias: %.6f %.6f %.6f\n', bias);
 end
 end
