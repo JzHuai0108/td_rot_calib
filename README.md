@@ -39,3 +39,48 @@ estimateRotAndTd.m: given two imu files.
 └── writeRotAndTd.m
 ```
 
+## Use example for lidar imu temporal and extrinsic rotation calibration
+
+### Use kiss-icp to process the lidar data
+
+*Clone* [kissicp](git@github.com:JzHuai0108/kiss-icp), checkout branch: inhouse-seqs
+
+*Build* refer to [kissicp readme](https://github.com/JzHuai0108/kiss-icp/blob/inhouse-seqs/README.md)
+
+Basically,
+```
+cd src/kiss-icp
+make editable
+kiss_icp_pipeline --help
+```
+
+*Run* the [script](https://github.com/JzHuai0108/kiss-icp/blob/inhouse-seqs/config/run_vlp16_kuangye.sh), note to change the *bag path* and *result_dir* in the script.
+
+### Extract the imu data from the rosbag
+
+*Clone* [vio_common](https://github.com/JzHuai0108/vio_common)
+
+*Run*
+
+```
+python3 python/bag_to_imu.py bag /imu/data
+```
+
+### Td and rot calib with correlation
+
+Open matlab, change working dir to td_and_rot calib folder
+
+Also find the kiss-icp odometry output xxx_tum.txt and the xxx_imu_data.txt.
+
+Run 
+
+```
+i_R_p_init = [ 0, 0, 1; 0, 1, 0; -1, 0, 0]; % lidar pose relative to IMU frame rough guess.
+iwinsize = 9; % imu smoothing window size
+pwinsize = 1; % lidar odometry smoothing window size
+
+[i_R_p, time_offset, td_list] = estimateRotAndTdByPose('xxx_imu_data.txt', 'xxx_tum.txt', outputdir, i_R_p_init, iwinsize, pwinsize)
+
+```
+
+The resulting time offset is *time_offset* which equals to the fourth value of td_list.
