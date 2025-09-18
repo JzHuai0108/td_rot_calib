@@ -1,5 +1,4 @@
-function P_aligned = apply_similarity(P_est_all, R, t, s)
-% P_est_all: Nx3 (all est positions)
-% Returns Nx3 aligned positions
-P_aligned = (s * (R * P_est_all')).' + t.';
+function P_out = apply_similarity(P_in, R, t, s)
+% P_in: Nx3; R:3x3; t:3x1; s:scalar
+    P_out = (s * (R * P_in') + t)';  % Nx3
 end

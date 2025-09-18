@@ -1,53 +1,79 @@
-est = readmatrix('C:\Users\elev854\Downloads\run_20250910_152028\run_20250910_152028\traj.txt');  % [t tx ty tz ...]
-gt  = readmatrix('C:\Users\elev854\Downloads\run_20250910_152028\run_20250910_152028\traj_gt_interp.txt');    % [t tx ty tz ...]
+function eval_ate(est_file, gt_file, use_secs, correct_scale)
+% eval_ate(est_file, gt_file, use_secs, correct_scale)
+% - est_file, gt_file: paths to text files [t x y z ...] (t in seconds)
+% - use_secs:
+%       [] / omitted      -> use all matches
+%       scalar  T > 0     -> use [0, T] s from first matched GT time in
+%       motion
+%       vector [t0, t1]   -> use [t0, t1] s from first matched GT time
+% - correct_scale: true => Sim(3); false => SE(3)
 
-matches = associate2(est, gt, 0, 0.005);
-% Sim(3) ATE (with scale):
-res = compute_ate_rmse(est(matches(:,1),:), gt(matches(:,2),:), true);
-disp(res.R);
-disp(res.t);
-disp(res.s);
+    if nargin < 3 || isempty(use_secs),  use_secs = []; end
+    if nargin < 4 || isempty(correct_scale), correct_scale = true; end
 
-% SE(3) ATE (no scale):
-res_se3  = compute_ate_rmse(est(matches(:,1),:), gt(matches(:,2),:), false);
+    % Read and sanity check
+    est = readmatrix(est_file);  % [t x y z ...]
+    gt  = readmatrix(gt_file);   % [t x y z ...]
+    assert(size(est,2) >= 4 && size(gt,2) >= 4, 'Need at least 4 columns [t x y z ...].');
 
-fprintf('Sim3 ATE RMSE = %.4f m  (N=%d)\n', res.rmse, numel(res.errors));
+    % Ensure time-sorted
+    if any(diff(est(:,1)) < 0), est = sortrows(est,1); end
+    if any(diff(gt(:,1))  < 0), gt  = sortrows(gt,1);  end
 
-% Align the full estimated trajectory using the similarity found on matches
-P_est_all = est(:,2:4);
-P_est_all_aligned = apply_similarity(P_est_all, res.R, res.t, res.s);
-P_gt_all  = gt(:,2:4);
+    % Associate by nearest time (≤ 5 ms)
+    matches = associate2(est, gt, 0.0, 0.005);
+    if size(matches,1) < 5
+        error('Not enough matches between %s and %s (N=%d).', est_file, gt_file, size(matches,1));
+    end
 
-% Prepare matched (highlight) subsets after alignment
-P_est_match_aligned = res.P_est_aligned;  % already aligned in res (Nx3)
-P_gt_match          = res.P_gt;           % Nx3
+    % Compute alignment + errors using requested time window
+    res = compute_ate_rmse(est(matches(:,1),:), gt(matches(:,2),:), use_secs, correct_scale);
 
-% ---- Plot ----
-figure; hold on; axis equal; grid on;
-plt1 = plot3(P_gt_all(:,1), P_gt_all(:,2), P_gt_all(:,3), '-', 'LineWidth', 1.5);
-plt2 = plot3(P_est_all_aligned(:,1), P_est_all_aligned(:,2), P_est_all_aligned(:,3), '-', 'LineWidth', 1.5);
+    % Print
+    [~, est_base] = fileparts(est_file);
+    [~,  gt_base] = fileparts(gt_file);
+    metric_type   = ternary(correct_scale, 'Sim3', 'SE3');
+    win_str       = window_to_str(res.align_window);
+    fprintf('%s  vs  %s | %s ATE RMSE = %.4f m  (N=%d)%s\n', ...
+        est_base, gt_base, metric_type, res.rmse, numel(res.errors), win_str);
+    fprintf('R =\n'); disp(res.R);
+    fprintf('t = [% .6f % .6f % .6f]^T\n', res.t(:));
+    fprintf('s = %.8f\n', res.s);
 
-% Highlight matched points
-% scatter3(P_gt_match(:,1), P_gt_match(:,2), P_gt_match(:,3), 24, 'k', 'filled');         % GT matches
-% scatter3(P_est_match_aligned(:,1), P_est_match_aligned(:,2), P_est_match_aligned(:,3), 24, 'r', 'filled'); % EST matches
+    % Align full estimated trajectory with found similarity
+    P_est_all         = est(:,2:4);
+    P_est_all_aligned = apply_similarity(P_est_all, res.R, res.t, res.s);
+    P_gt_all          = gt(:,2:4);
 
-% ---- NEW: mark start/end on GT trajectory ----
-gt_start = P_gt_all(1,:);                    % start point (GT)
-gt_end   = P_gt_all(end,:);                  % end point (GT)
-scatter3(gt_start(1), gt_start(2), gt_start(3), 80, 'g', 'filled', 'Marker', 'o'); % green circle
-scatter3(gt_end(1),   gt_end(2),   gt_end(3),   80, 'm', 'filled', 'Marker', 's'); % magenta square
-text(gt_start(1), gt_start(2), gt_start(3), '  GT start', 'Color', 'g', 'FontWeight','bold');
-text(gt_end(1),   gt_end(2),   gt_end(3),   '  GT end',   'Color', 'm', 'FontWeight','bold');
+    % Plot
+    figure('Name','Aligned Trajectories','Color','w'); hold on; axis equal; grid on;
+    plt1 = plot3(P_gt_all(:,1),  P_gt_all(:,2),  P_gt_all(:,3),  'g--', 'LineWidth', 1.5, 'DisplayName','GT (all)');
+    plt2 = plot3(P_est_all_aligned(:,1), P_est_all_aligned(:,2), P_est_all_aligned(:,3), 'b-.',  'LineWidth', 1.5, 'DisplayName','EST aligned (all)');
 
-% (Optional) also mark start/end on aligned EST trajectory
-% est_start = P_est_all_aligned(1,:);
-% est_end   = P_est_all_aligned(end,:);
-% scatter3(est_start(1), est_start(2), est_start(3), 70, 'g', 'o');
-% scatter3(est_end(1),   est_end(2),   est_end(3),   70, 'm', 's');
-% text(est_start(1), est_start(2), est_start(3), '  EST start', 'Color', [0 0.5 0]);
-% text(est_end(1),   est_end(2),   est_end(3),   '  EST end',   'Color', [0.6 0 0.6]);
+    % Mark GT start/end
+    gt_start = P_gt_all(1,:); 
+    gt_end   = P_gt_all(end,:);
+    plt3 = scatter3(gt_start(1), gt_start(2), gt_start(3), 72, 'go', 'DisplayName','GT start');
+    plt4 = scatter3(gt_end(1),   gt_end(2),   gt_end(3),   72, 'ks', 'DisplayName','GT end');
 
-legend([plt1, plt2], {'GT (all)', 'EST aligned (all)'}, 'Location','best');
-xlabel('X [m]'); ylabel('Y [m]'); zlabel('Z [m]');
-title(sprintf('Aligned Trajectories (ATE RMSE = %.3f m, N=%d)', res.rmse, numel(res.errors)));
-view(3);
+    legend([plt1, plt2, plt3, plt4], 'Location','best');
+    xlabel('X [m]'); ylabel('Y [m]'); zlabel('Z [m]');
+    ttl = sprintf('Aligned Trajectories — %s ATE RMSE = %.3f m (N=%d)%s', metric_type, res.rmse, numel(res.errors), win_str);
+    title(ttl);
+    view(3);
+end
+
+function out = ternary(cond, a, b)
+    if cond, out = a; else, out = b; end
+end
+
+function s = window_to_str(use_secs)
+    if isempty(use_secs), s = '';
+    elseif isscalar(use_secs)
+        s = sprintf('  [window: 0–%.2fs]', use_secs);
+    else
+        a = use_secs(1); b = use_secs(2);
+        if b < a, tmp=a; a=b; b=tmp; end
+        s = sprintf('  [window: %.2f–%.2fs]', a, b);
+    end
+end
